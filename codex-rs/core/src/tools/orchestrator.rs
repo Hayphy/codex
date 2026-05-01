@@ -192,7 +192,6 @@ impl ToolOrchestrator {
                             tool_ctx,
                             /*evaluate_permission_request_hooks*/ false,
                             route,
-                            &otel,
                         )
                         .await?;
                         Self::reject_if_not_approved(
@@ -244,7 +243,6 @@ impl ToolOrchestrator {
                             /*evaluate_permission_request_hooks*/
                             !strict_auto_review && pre_tool_use_permission_decision.is_none(),
                             route,
-                            &otel,
                         )
                         .await?;
 
@@ -396,7 +394,6 @@ impl ToolOrchestrator {
                             /*evaluate_permission_request_hooks*/
                             !strict_auto_review && pre_tool_use_permission_decision.is_none(),
                             route,
-                            &otel,
                         )
                         .await?;
 
@@ -454,11 +451,11 @@ impl ToolOrchestrator {
         tool_ctx: &ToolCtx,
         evaluate_permission_request_hooks: bool,
         route: ApprovalRoute,
-        otel: &codex_otel::SessionTelemetry,
     ) -> Result<ReviewDecision, ToolError>
     where
         T: ToolRuntime<Rq, Out>,
     {
+        let otel = approval_ctx.turn.session_telemetry.clone();
         if evaluate_permission_request_hooks
             && let Some(permission_request) = tool.permission_request_payload(req)
         {

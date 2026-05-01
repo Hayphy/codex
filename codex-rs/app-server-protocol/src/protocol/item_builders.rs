@@ -44,6 +44,9 @@ pub fn build_file_change_approval_request_item(
         id: payload.call_id.clone(),
         changes: convert_patch_changes(&payload.changes),
         status: PatchApplyStatus::InProgress,
+        started_at_ms: None,
+        completed_at_ms: None,
+        duration_ms: None,
     }
 }
 
@@ -52,6 +55,9 @@ pub fn build_file_change_begin_item(payload: &PatchApplyBeginEvent) -> ThreadIte
         id: payload.call_id.clone(),
         changes: convert_patch_changes(&payload.changes),
         status: PatchApplyStatus::InProgress,
+        started_at_ms: payload.started_at_ms,
+        completed_at_ms: None,
+        duration_ms: None,
     }
 }
 
@@ -60,6 +66,9 @@ pub fn build_file_change_end_item(payload: &PatchApplyEndEvent) -> ThreadItem {
         id: payload.call_id.clone(),
         changes: convert_patch_changes(&payload.changes),
         status: (&payload.status).into(),
+        started_at_ms: payload.started_at_ms,
+        completed_at_ms: payload.completed_at_ms,
+        duration_ms: payload.duration_ms,
     }
 }
 
@@ -81,6 +90,8 @@ pub fn build_command_execution_approval_request_item(
             .collect(),
         aggregated_output: None,
         exit_code: None,
+        started_at_ms: None,
+        completed_at_ms: None,
         duration_ms: None,
     }
 }
@@ -101,6 +112,8 @@ pub fn build_command_execution_begin_item(payload: &ExecCommandBeginEvent) -> Th
             .collect(),
         aggregated_output: None,
         exit_code: None,
+        started_at_ms: payload.started_at_ms,
+        completed_at_ms: None,
         duration_ms: None,
     }
 }
@@ -128,6 +141,8 @@ pub fn build_command_execution_end_item(payload: &ExecCommandEndEvent) -> Thread
             .collect(),
         aggregated_output,
         exit_code: Some(payload.exit_code),
+        started_at_ms: payload.started_at_ms,
+        completed_at_ms: payload.completed_at_ms,
         duration_ms: Some(duration_ms),
     }
 }
@@ -157,6 +172,8 @@ pub fn build_item_from_guardian_event(
                 command_actions,
                 aggregated_output: None,
                 exit_code: None,
+                started_at_ms: None,
+                completed_at_ms: None,
                 duration_ms: None,
             })
         }
@@ -193,6 +210,8 @@ pub fn build_item_from_guardian_event(
                 command_actions,
                 aggregated_output: None,
                 exit_code: None,
+                started_at_ms: None,
+                completed_at_ms: None,
                 duration_ms: None,
             })
         }

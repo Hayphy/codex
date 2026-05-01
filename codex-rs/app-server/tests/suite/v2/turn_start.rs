@@ -2158,12 +2158,18 @@ async fn turn_start_file_change_approval_v2() -> Result<()> {
         ref id,
         status,
         ref changes,
+        started_at_ms,
+        completed_at_ms,
+        duration_ms,
     } = started_file_change
     else {
         unreachable!("loop ensures we break on file change items");
     };
     assert_eq!(id, "patch-call");
     assert_eq!(status, PatchApplyStatus::InProgress);
+    assert!(started_at_ms.is_some());
+    assert_eq!(completed_at_ms, None);
+    assert_eq!(duration_ms, None);
     let started_changes = changes.clone();
 
     let server_req = timeout(
@@ -2229,11 +2235,22 @@ async fn turn_start_file_change_approval_v2() -> Result<()> {
     }
     let completed_file_change =
         completed_file_change.expect("file change completion should be observed");
-    let ThreadItem::FileChange { ref id, status, .. } = completed_file_change else {
+    let ThreadItem::FileChange {
+        ref id,
+        status,
+        started_at_ms,
+        completed_at_ms,
+        duration_ms,
+        ..
+    } = completed_file_change
+    else {
         unreachable!("loop ensures we break on file change items");
     };
     assert_eq!(id, "patch-call");
     assert_eq!(status, PatchApplyStatus::Completed);
+    assert!(started_at_ms.is_some());
+    assert!(completed_at_ms.is_some());
+    assert!(duration_ms.is_some());
 
     let readme_contents = std::fs::read_to_string(expected_readme_path)?;
     assert_eq!(readme_contents, "new line\n");
@@ -2594,20 +2611,35 @@ async fn turn_start_emits_spawn_agent_item_with_model_metadata_v2() -> Result<()
         }
     })
     .await??;
-    assert_eq!(
-        spawn_started,
-        ThreadItem::CollabAgentToolCall {
-            id: SPAWN_CALL_ID.to_string(),
-            tool: CollabAgentTool::SpawnAgent,
-            status: CollabAgentToolCallStatus::InProgress,
-            sender_thread_id: thread.id.clone(),
-            receiver_thread_ids: Vec::new(),
-            prompt: Some(CHILD_PROMPT.to_string()),
-            model: Some(REQUESTED_MODEL.to_string()),
-            reasoning_effort: Some(REQUESTED_REASONING_EFFORT),
-            agents_states: HashMap::new(),
-        }
-    );
+    let ThreadItem::CollabAgentToolCall {
+        id,
+        tool,
+        status,
+        sender_thread_id,
+        receiver_thread_ids,
+        prompt,
+        model,
+        reasoning_effort,
+        agents_states,
+        started_at_ms,
+        completed_at_ms,
+        duration_ms,
+    } = spawn_started
+    else {
+        panic!("expected collab agent tool call item");
+    };
+    assert_eq!(id, SPAWN_CALL_ID);
+    assert_eq!(tool, CollabAgentTool::SpawnAgent);
+    assert_eq!(status, CollabAgentToolCallStatus::InProgress);
+    assert_eq!(sender_thread_id, thread.id);
+    assert_eq!(receiver_thread_ids, Vec::<String>::new());
+    assert_eq!(prompt.as_deref(), Some(CHILD_PROMPT));
+    assert_eq!(model.as_deref(), Some(REQUESTED_MODEL));
+    assert_eq!(reasoning_effort, Some(REQUESTED_REASONING_EFFORT));
+    assert_eq!(agents_states, HashMap::new());
+    assert!(started_at_ms.is_some());
+    assert_eq!(completed_at_ms, None);
+    assert_eq!(duration_ms, None);
 
     let spawn_completed = timeout(DEFAULT_READ_TIMEOUT, async {
         loop {
@@ -2634,6 +2666,9 @@ async fn turn_start_emits_spawn_agent_item_with_model_metadata_v2() -> Result<()
         model,
         reasoning_effort,
         agents_states,
+        started_at_ms,
+        completed_at_ms,
+        duration_ms,
     } = spawn_completed
     else {
         unreachable!("loop ensures we break on collab agent tool call items");
@@ -2645,6 +2680,9 @@ async fn turn_start_emits_spawn_agent_item_with_model_metadata_v2() -> Result<()
     assert_eq!(id, SPAWN_CALL_ID);
     assert_eq!(tool, CollabAgentTool::SpawnAgent);
     assert_eq!(status, CollabAgentToolCallStatus::Completed);
+    assert!(started_at_ms.is_some());
+    assert!(completed_at_ms.is_some());
+    assert!(duration_ms.is_some());
     assert_eq!(sender_thread_id, thread.id);
     assert_eq!(receiver_thread_ids, vec![receiver_thread_id.clone()]);
     assert_eq!(prompt, Some(CHILD_PROMPT.to_string()));
@@ -2818,6 +2856,9 @@ config_file = "./custom-role.toml"
         model,
         reasoning_effort,
         agents_states,
+        started_at_ms,
+        completed_at_ms,
+        duration_ms,
     } = spawn_completed
     else {
         unreachable!("loop ensures we break on collab agent tool call items");
@@ -2829,6 +2870,9 @@ config_file = "./custom-role.toml"
     assert_eq!(id, SPAWN_CALL_ID);
     assert_eq!(tool, CollabAgentTool::SpawnAgent);
     assert_eq!(status, CollabAgentToolCallStatus::Completed);
+    assert!(started_at_ms.is_some());
+    assert!(completed_at_ms.is_some());
+    assert!(duration_ms.is_some());
     assert_eq!(sender_thread_id, thread.id);
     assert_eq!(receiver_thread_ids, vec![receiver_thread_id.clone()]);
     assert_eq!(prompt, Some(CHILD_PROMPT.to_string()));
@@ -3126,6 +3170,7 @@ async fn turn_start_file_change_approval_decline_v2() -> Result<()> {
         ref id,
         status,
         ref changes,
+        ..
     } = started_file_change
     else {
         unreachable!("loop ensures we break on file change items");
@@ -3275,6 +3320,9 @@ async fn command_execution_notifications_include_process_id() -> Result<()> {
         id,
         process_id: started_process_id,
         status,
+        started_at_ms,
+        completed_at_ms,
+        duration_ms,
         ..
     } = started_command
     else {
@@ -3282,6 +3330,9 @@ async fn command_execution_notifications_include_process_id() -> Result<()> {
     };
     assert_eq!(id, "uexec-1");
     assert_eq!(status, CommandExecutionStatus::InProgress);
+    assert!(started_at_ms.is_some());
+    assert_eq!(completed_at_ms, None);
+    assert_eq!(duration_ms, None);
     let started_process_id = started_process_id.expect("process id should be present");
 
     let completed_command = timeout(DEFAULT_READ_TIMEOUT, async {
@@ -3306,6 +3357,9 @@ async fn command_execution_notifications_include_process_id() -> Result<()> {
         process_id: completed_process_id,
         status: completed_status,
         exit_code,
+        started_at_ms,
+        completed_at_ms,
+        duration_ms,
         ..
     } = completed_command
     else {
@@ -3328,6 +3382,9 @@ async fn command_execution_notifications_include_process_id() -> Result<()> {
         completed_process_id.as_deref(),
         Some(started_process_id.as_str())
     );
+    assert!(started_at_ms.is_some());
+    assert!(completed_at_ms.is_some());
+    assert!(duration_ms.is_some());
 
     timeout(
         DEFAULT_READ_TIMEOUT,

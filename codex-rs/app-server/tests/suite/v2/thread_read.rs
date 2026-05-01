@@ -193,6 +193,82 @@ async fn thread_read_can_include_turns() -> Result<()> {
 }
 
 #[tokio::test]
+async fn thread_read_replays_persisted_item_timing() -> Result<()> {
+    let server = create_mock_responses_server_repeating_assistant("Done").await;
+    let codex_home = TempDir::new()?;
+    create_config_toml(codex_home.path(), &server.uri())?;
+
+    let conversation_id = create_fake_rollout_with_text_elements(
+        codex_home.path(),
+        "2025-01-05T12-00-00",
+        "2025-01-05T12:00:00Z",
+        "search for codex",
+        vec![],
+        Some("mock_provider"),
+        /*git_info*/ None,
+    )?;
+    let rollout_path = rollout_path(codex_home.path(), "2025-01-05T12-00-00", &conversation_id);
+    let mut rollout_file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(rollout_path)?;
+    writeln!(
+        rollout_file,
+        "{}",
+        json!({
+            "timestamp": "2025-01-05T12:00:01Z",
+            "type": "event_msg",
+            "payload": {
+                "type": "web_search_end",
+                "call_id": "search-1",
+                "query": "codex",
+                "action": {
+                    "type": "search",
+                    "query": "codex"
+                },
+                "started_at_ms": 1_000,
+                "completed_at_ms": 1_025,
+                "duration_ms": 25
+            }
+        })
+    )?;
+
+    let mut mcp = McpProcess::new(codex_home.path()).await?;
+    timeout(DEFAULT_READ_TIMEOUT, mcp.initialize()).await??;
+
+    let read_id = mcp
+        .send_thread_read_request(ThreadReadParams {
+            thread_id: conversation_id,
+            include_turns: true,
+        })
+        .await?;
+    let read_resp: JSONRPCResponse = timeout(
+        DEFAULT_READ_TIMEOUT,
+        mcp.read_stream_until_response_message(RequestId::Integer(read_id)),
+    )
+    .await??;
+    let ThreadReadResponse { thread, .. } = to_response::<ThreadReadResponse>(read_resp)?;
+
+    assert_eq!(thread.turns.len(), 1);
+    assert_eq!(thread.turns[0].items.len(), 2);
+    assert_eq!(
+        thread.turns[0].items[1],
+        ThreadItem::WebSearch {
+            id: "search-1".to_string(),
+            query: "codex".to_string(),
+            action: Some(codex_app_server_protocol::WebSearchAction::Search {
+                query: Some("codex".to_string()),
+                queries: None,
+            }),
+            started_at_ms: Some(1_000),
+            completed_at_ms: Some(1_025),
+            duration_ms: Some(25),
+        }
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn thread_turns_list_can_page_backward_and_forward() -> Result<()> {
     let server = create_mock_responses_server_repeating_assistant("Done").await;
     let codex_home = TempDir::new()?;

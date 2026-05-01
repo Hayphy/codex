@@ -256,6 +256,9 @@ url = "{mcp_server_url}/mcp"
         status,
         result: Some(result),
         error,
+        started_at_ms,
+        completed_at_ms,
+        duration_ms,
         ..
     } = completed.item
     else {
@@ -266,6 +269,9 @@ url = "{mcp_server_url}/mcp"
     assert_eq!(tool, TEST_TOOL_NAME);
     assert_eq!(status, McpToolCallStatus::Completed);
     assert_eq!(error, None);
+    assert!(started_at_ms.is_some());
+    assert!(completed_at_ms.is_some());
+    assert!(duration_ms.is_some());
     assert_eq!(result.structured_content, None);
     assert_eq!(result.meta, None);
     assert_eq!(result.content.len(), 1);
@@ -286,6 +292,8 @@ url = "{mcp_server_url}/mcp"
         mcp_app_resource_uri: None,
         result: Some(result),
         error: None,
+        started_at_ms: None,
+        completed_at_ms: None,
         duration_ms: None,
     })?;
     assert!(serialized_item.len() < DEFAULT_OUTPUT_BYTES_CAP * 2 + 2048);

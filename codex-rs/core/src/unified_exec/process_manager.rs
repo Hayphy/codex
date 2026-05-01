@@ -27,6 +27,7 @@ use crate::tools::runtimes::unified_exec::UnifiedExecRequest as UnifiedExecToolR
 use crate::tools::runtimes::unified_exec::UnifiedExecRuntime;
 use crate::tools::sandboxing::ToolCtx;
 use crate::tools::sandboxing::ToolError;
+use crate::turn_timing::now_unix_timestamp_ms;
 use crate::unified_exec::ExecCommandRequest;
 use crate::unified_exec::MAX_UNIFIED_EXEC_PROCESSES;
 use crate::unified_exec::MAX_YIELD_TIME_MS;
@@ -285,6 +286,7 @@ async fn emit_failed_initial_exec_end_if_unstored(
     fallback_output: String,
     message: String,
     wall_time: Duration,
+    started_at_ms: i64,
 ) {
     if process_started_alive {
         return;
@@ -301,6 +303,7 @@ async fn emit_failed_initial_exec_end_if_unstored(
         fallback_output,
         message,
         wall_time,
+        started_at_ms,
     )
     .await;
 }
@@ -397,6 +400,7 @@ impl UnifiedExecProcessManager {
         }
 
         let transcript = Arc::new(tokio::sync::Mutex::new(HeadTailBuffer::default()));
+        let started_at_ms = now_unix_timestamp_ms();
         let event_ctx = ToolEventCtx::new(
             context.session.as_ref(),
             context.turn.as_ref(),
@@ -408,6 +412,7 @@ impl UnifiedExecProcessManager {
             cwd.clone(),
             ExecCommandSource::UnifiedExecStartup,
             Some(request.process_id.to_string()),
+            started_at_ms,
         );
         emitter.emit(event_ctx, ToolEventStage::Begin).await;
 
@@ -428,6 +433,7 @@ impl UnifiedExecProcessManager {
                 request.tty,
                 deferred_network_approval.clone(),
                 Arc::clone(&transcript),
+                started_at_ms,
             )
             .await;
         }
@@ -480,6 +486,7 @@ impl UnifiedExecProcessManager {
                 text.clone(),
                 message.clone(),
                 wall_time,
+                started_at_ms,
             )
             .await;
             self.release_process_id(request.process_id).await;
@@ -500,6 +507,7 @@ impl UnifiedExecProcessManager {
                 text.clone(),
                 message.clone(),
                 wall_time,
+                started_at_ms,
             )
             .await;
             self.release_process_id(request.process_id).await;
@@ -552,6 +560,7 @@ impl UnifiedExecProcessManager {
                     text.clone(),
                     message.clone(),
                     wall_time,
+                    started_at_ms,
                 )
                 .await;
                 self.release_process_id(request.process_id).await;
@@ -570,6 +579,7 @@ impl UnifiedExecProcessManager {
                 text.clone(),
                 exit,
                 wall_time,
+                started_at_ms,
             )
             .await;
 
@@ -818,6 +828,7 @@ impl UnifiedExecProcessManager {
         tty: bool,
         network_approval: Option<DeferredNetworkApproval>,
         transcript: Arc<tokio::sync::Mutex<HeadTailBuffer>>,
+        started_at_ms: i64,
     ) {
         let entry = ProcessEntry {
             process: Arc::clone(&process),
@@ -862,6 +873,7 @@ impl UnifiedExecProcessManager {
             process_id,
             transcript,
             started_at,
+            started_at_ms,
         );
     }
 

@@ -1427,6 +1427,9 @@ mod tests {
                 revised_prompt: Some("final prompt".into()),
                 result: "Zm9v".into(),
                 saved_path: Some(test_path_buf("/tmp/ig_123.png").abs()),
+                started_at_ms: None,
+                completed_at_ms: None,
+                duration_ms: None,
             })),
             RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
                 turn_id: "turn-image".into(),
@@ -1811,6 +1814,9 @@ mod tests {
                     query: Some("codex".into()),
                     queries: None,
                 },
+                started_at_ms: None,
+                completed_at_ms: None,
+                duration_ms: None,
             }),
             EventMsg::ExecCommandEnd(ExecCommandEndEvent {
                 call_id: "exec-1".into(),
@@ -1830,6 +1836,8 @@ mod tests {
                 duration: Duration::from_millis(12),
                 formatted_output: String::new(),
                 status: CoreExecCommandStatus::Completed,
+                started_at_ms: None,
+                completed_at_ms: None,
             }),
             EventMsg::McpToolCallEnd(McpToolCallEndEvent {
                 call_id: "mcp-1".into(),
@@ -1841,6 +1849,8 @@ mod tests {
                 mcp_app_resource_uri: None,
                 duration: Duration::from_millis(8),
                 result: Err("boom".into()),
+                started_at_ms: None,
+                completed_at_ms: None,
             }),
         ];
 
@@ -1926,6 +1936,8 @@ mod tests {
                         "ui/resourceUri": "ui://widget/lookup.html"
                     })),
                 }),
+                started_at_ms: None,
+                completed_at_ms: None,
             }),
         ];
 
@@ -1982,6 +1994,7 @@ mod tests {
                     namespace: Some("codex_app".into()),
                     tool: "lookup_ticket".into(),
                     arguments: serde_json::json!({"id":"ABC-123"}),
+                    started_at_ms: None,
                 },
             ),
             EventMsg::DynamicToolCallResponse(DynamicToolCallResponseEvent {
@@ -1996,6 +2009,8 @@ mod tests {
                 success: true,
                 error: None,
                 duration: Duration::from_millis(42),
+                started_at_ms: None,
+                completed_at_ms: None,
             }),
         ];
 
@@ -2054,6 +2069,8 @@ mod tests {
                 duration: Duration::ZERO,
                 formatted_output: String::new(),
                 status: CoreExecCommandStatus::Declined,
+                started_at_ms: None,
+                completed_at_ms: None,
             }),
             EventMsg::PatchApplyEnd(PatchApplyEndEvent {
                 call_id: "patch-declined".into(),
@@ -2070,6 +2087,9 @@ mod tests {
                 .into_iter()
                 .collect(),
                 status: CorePatchApplyStatus::Declined,
+                started_at_ms: None,
+                completed_at_ms: None,
+                duration_ms: None,
             }),
         ];
 
@@ -2303,6 +2323,8 @@ mod tests {
                 duration: Duration::from_millis(5),
                 formatted_output: "done\n".into(),
                 status: CoreExecCommandStatus::Completed,
+                started_at_ms: None,
+                completed_at_ms: None,
             }),
             EventMsg::TurnComplete(TurnCompleteEvent {
                 turn_id: "turn-b".into(),
@@ -2394,6 +2416,8 @@ mod tests {
                 duration: Duration::from_millis(5),
                 formatted_output: "done\n".into(),
                 status: CoreExecCommandStatus::Completed,
+                started_at_ms: None,
+                completed_at_ms: None,
             }),
             EventMsg::TurnComplete(TurnCompleteEvent {
                 turn_id: "turn-b".into(),
@@ -2455,6 +2479,7 @@ mod tests {
                 )]
                 .into_iter()
                 .collect(),
+                started_at_ms: None,
             }),
         ];
 
@@ -2735,6 +2760,9 @@ mod tests {
                 receiver_agent_nickname: None,
                 receiver_agent_role: None,
                 status: AgentStatus::Completed(None),
+                started_at_ms: None,
+                completed_at_ms: None,
+                duration_ms: None,
             }),
         ];
 
@@ -2792,6 +2820,9 @@ mod tests {
                 model: "gpt-5.4-mini".into(),
                 reasoning_effort: codex_protocol::openai_models::ReasoningEffort::Medium,
                 status: AgentStatus::Running,
+                started_at_ms: None,
+                completed_at_ms: None,
+                duration_ms: None,
             }),
         ];
 
@@ -2848,6 +2879,7 @@ mod tests {
                     sender_thread_id: sender,
                     receiver_thread_id: receiver,
                     prompt: "new task".into(),
+                    started_at_ms: None,
                 },
             ),
             EventMsg::CollabAgentInteractionEnd(
@@ -2859,6 +2891,9 @@ mod tests {
                     receiver_agent_role: None,
                     prompt: "new task".into(),
                     status: AgentStatus::Interrupted,
+                    started_at_ms: None,
+                    completed_at_ms: None,
+                    duration_ms: None,
                 },
             ),
         ];

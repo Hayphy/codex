@@ -119,6 +119,15 @@ pub struct WebSearchItem {
     pub id: String,
     pub query: String,
     pub action: WebSearchAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub started_at_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub completed_at_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub duration_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema, PartialEq)]
@@ -132,6 +141,15 @@ pub struct ImageGenerationItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub saved_path: Option<AbsolutePathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub started_at_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub completed_at_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub duration_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema, PartialEq)]
@@ -150,6 +168,15 @@ pub struct FileChangeItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub stderr: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub started_at_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub completed_at_ms: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub duration_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema)]
@@ -390,6 +417,9 @@ impl WebSearchItem {
             call_id: self.id.clone(),
             query: self.query.clone(),
             action: self.action.clone(),
+            started_at_ms: self.started_at_ms,
+            completed_at_ms: self.completed_at_ms,
+            duration_ms: self.duration_ms,
         })
     }
 }
@@ -402,6 +432,9 @@ impl ImageGenerationItem {
             revised_prompt: self.revised_prompt.clone(),
             result: self.result.clone(),
             saved_path: self.saved_path.clone(),
+            started_at_ms: self.started_at_ms,
+            completed_at_ms: self.completed_at_ms,
+            duration_ms: self.duration_ms,
         })
     }
 }
@@ -413,6 +446,7 @@ impl FileChangeItem {
             turn_id,
             auto_approved: self.auto_approved.unwrap_or(false),
             changes: self.changes.clone(),
+            started_at_ms: self.started_at_ms,
         })
     }
 
@@ -426,6 +460,9 @@ impl FileChangeItem {
             success: status == PatchApplyStatus::Completed,
             changes: self.changes.clone(),
             status,
+            started_at_ms: self.started_at_ms,
+            completed_at_ms: self.completed_at_ms,
+            duration_ms: self.duration_ms,
         }))
     }
 }

@@ -193,6 +193,7 @@ async fn run_snapshot_command_with_options(
         _ => None,
     })
     .await;
+    assert_eq!(end.started_at_ms, begin.started_at_ms);
 
     wait_for_event(&codex, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 
@@ -288,6 +289,7 @@ async fn run_shell_command_snapshot_with_options(
         _ => None,
     })
     .await;
+    assert_eq!(end.started_at_ms, begin.started_at_ms);
 
     wait_for_event(&codex, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
 

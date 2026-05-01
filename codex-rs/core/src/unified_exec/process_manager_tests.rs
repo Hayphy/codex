@@ -200,6 +200,7 @@ async fn failed_initial_end_for_unstored_process_uses_fallback_output() {
         "PRE_DENIAL_MARKER".to_string(),
         "Network access denied".to_string(),
         Duration::from_millis(7),
+        /*started_at_ms*/ 123,
     )
     .await;
 
@@ -217,6 +218,7 @@ async fn failed_initial_end_for_unstored_process_uses_fallback_output() {
     );
     assert_eq!(end_event.exit_code, -1);
     assert_eq!(end_event.process_id.as_deref(), Some("123"));
+    assert_eq!(end_event.started_at_ms, Some(123));
     assert_eq!(
         end_event.aggregated_output,
         "PRE_DENIAL_MARKER\nNetwork access denied"

@@ -3,6 +3,7 @@ use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use crate::tools::context::SharedTurnDiffTracker;
 use crate::tools::sandboxing::ToolError;
+use crate::turn_timing::now_unix_timestamp_ms;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::SandboxErr;
 use codex_protocol::exec_output::ExecToolCallOutput;
@@ -61,27 +62,20 @@ pub(crate) enum ToolEventFailure {
     Rejected(String),
 }
 
-pub(crate) async fn emit_exec_command_begin(
-    ctx: ToolEventCtx<'_>,
-    command: &[String],
-    cwd: &AbsolutePathBuf,
-    parsed_cmd: &[ParsedCommand],
-    source: ExecCommandSource,
-    interaction_input: Option<String>,
-    process_id: Option<&str>,
-) {
+async fn emit_exec_begin(ctx: ToolEventCtx<'_>, exec_input: ExecCommandInput<'_>) {
     ctx.session
         .send_event(
             ctx.turn,
             EventMsg::ExecCommandBegin(ExecCommandBeginEvent {
                 call_id: ctx.call_id.to_string(),
-                process_id: process_id.map(str::to_owned),
+                process_id: exec_input.process_id.map(str::to_owned),
                 turn_id: ctx.turn.sub_id.clone(),
-                command: command.to_vec(),
-                cwd: cwd.clone(),
-                parsed_cmd: parsed_cmd.to_vec(),
-                source,
-                interaction_input,
+                command: exec_input.command.to_vec(),
+                cwd: exec_input.cwd.clone(),
+                parsed_cmd: exec_input.parsed_cmd.to_vec(),
+                source: exec_input.source,
+                interaction_input: exec_input.interaction_input.map(str::to_owned),
+                started_at_ms: Some(exec_input.started_at_ms),
             }),
         )
         .await;
@@ -94,10 +88,12 @@ pub(crate) enum ToolEmitter {
         source: ExecCommandSource,
         parsed_cmd: Vec<ParsedCommand>,
         freeform: bool,
+        started_at_ms: i64,
     },
     ApplyPatch {
         changes: HashMap<PathBuf, FileChange>,
         auto_approved: bool,
+        started_at_ms: i64,
     },
     UnifiedExec {
         command: Vec<String>,
@@ -105,6 +101,7 @@ pub(crate) enum ToolEmitter {
         source: ExecCommandSource,
         parsed_cmd: Vec<ParsedCommand>,
         process_id: Option<String>,
+        started_at_ms: i64,
     },
 }
 
@@ -122,6 +119,7 @@ impl ToolEmitter {
             source,
             parsed_cmd,
             freeform,
+            started_at_ms: now_unix_timestamp_ms(),
         }
     }
 
@@ -129,6 +127,7 @@ impl ToolEmitter {
         Self::ApplyPatch {
             changes,
             auto_approved,
+            started_at_ms: now_unix_timestamp_ms(),
         }
     }
 
@@ -137,6 +136,7 @@ impl ToolEmitter {
         cwd: AbsolutePathBuf,
         source: ExecCommandSource,
         process_id: Option<String>,
+        started_at_ms: i64,
     ) -> Self {
         let parsed_cmd = parse_command(command);
         Self::UnifiedExec {
@@ -145,6 +145,7 @@ impl ToolEmitter {
             source,
             parsed_cmd,
             process_id,
+            started_at_ms,
         }
     }
 
@@ -156,6 +157,7 @@ impl ToolEmitter {
                     cwd,
                     source,
                     parsed_cmd,
+                    started_at_ms,
                     ..
                 },
                 stage,
@@ -163,8 +165,13 @@ impl ToolEmitter {
                 emit_exec_stage(
                     ctx,
                     ExecCommandInput::new(
-                        command, cwd, parsed_cmd, *source, /*interaction_input*/ None,
+                        command,
+                        cwd,
+                        parsed_cmd,
+                        *source,
+                        /*interaction_input*/ None,
                         /*process_id*/ None,
+                        *started_at_ms,
                     ),
                     stage,
                 )
@@ -175,6 +182,7 @@ impl ToolEmitter {
                 Self::ApplyPatch {
                     changes,
                     auto_approved,
+                    started_at_ms,
                 },
                 ToolEventStage::Begin,
             ) => {
@@ -192,11 +200,21 @@ impl ToolEmitter {
                             auto_approved: Some(*auto_approved),
                             stdout: None,
                             stderr: None,
+                            started_at_ms: Some(*started_at_ms),
+                            completed_at_ms: None,
+                            duration_ms: None,
                         }),
                     )
                     .await;
             }
-            (Self::ApplyPatch { changes, .. }, ToolEventStage::Success(output)) => {
+            (
+                Self::ApplyPatch {
+                    changes,
+                    started_at_ms,
+                    ..
+                },
+                ToolEventStage::Success(output),
+            ) => {
                 emit_patch_end(
                     ctx,
                     changes.clone(),
@@ -207,11 +225,17 @@ impl ToolEmitter {
                     } else {
                         PatchApplyStatus::Failed
                     },
+                    output.duration,
+                    *started_at_ms,
                 )
                 .await;
             }
             (
-                Self::ApplyPatch { changes, .. },
+                Self::ApplyPatch {
+                    changes,
+                    started_at_ms,
+                    ..
+                },
                 ToolEventStage::Failure(ToolEventFailure::Output(output)),
             ) => {
                 emit_patch_end(
@@ -224,11 +248,17 @@ impl ToolEmitter {
                     } else {
                         PatchApplyStatus::Failed
                     },
+                    output.duration,
+                    *started_at_ms,
                 )
                 .await;
             }
             (
-                Self::ApplyPatch { changes, .. },
+                Self::ApplyPatch {
+                    changes,
+                    started_at_ms,
+                    ..
+                },
                 ToolEventStage::Failure(ToolEventFailure::Message(message)),
             ) => {
                 emit_patch_end(
@@ -237,11 +267,17 @@ impl ToolEmitter {
                     String::new(),
                     (*message).to_string(),
                     PatchApplyStatus::Failed,
+                    Duration::ZERO,
+                    *started_at_ms,
                 )
                 .await;
             }
             (
-                Self::ApplyPatch { changes, .. },
+                Self::ApplyPatch {
+                    changes,
+                    started_at_ms,
+                    ..
+                },
                 ToolEventStage::Failure(ToolEventFailure::Rejected(message)),
             ) => {
                 emit_patch_end(
@@ -250,6 +286,8 @@ impl ToolEmitter {
                     String::new(),
                     (*message).to_string(),
                     PatchApplyStatus::Declined,
+                    Duration::ZERO,
+                    *started_at_ms,
                 )
                 .await;
             }
@@ -260,6 +298,7 @@ impl ToolEmitter {
                     source,
                     parsed_cmd,
                     process_id,
+                    started_at_ms,
                 },
                 stage,
             ) => {
@@ -272,6 +311,7 @@ impl ToolEmitter {
                         *source,
                         /*interaction_input*/ None,
                         process_id.as_deref(),
+                        *started_at_ms,
                     ),
                     stage,
                 )
@@ -364,6 +404,7 @@ struct ExecCommandInput<'a> {
     source: ExecCommandSource,
     interaction_input: Option<&'a str>,
     process_id: Option<&'a str>,
+    started_at_ms: i64,
 }
 
 impl<'a> ExecCommandInput<'a> {
@@ -374,6 +415,7 @@ impl<'a> ExecCommandInput<'a> {
         source: ExecCommandSource,
         interaction_input: Option<&'a str>,
         process_id: Option<&'a str>,
+        started_at_ms: i64,
     ) -> Self {
         Self {
             command,
@@ -382,6 +424,7 @@ impl<'a> ExecCommandInput<'a> {
             source,
             interaction_input,
             process_id,
+            started_at_ms,
         }
     }
 }
@@ -403,16 +446,7 @@ async fn emit_exec_stage(
 ) {
     match stage {
         ToolEventStage::Begin => {
-            emit_exec_command_begin(
-                ctx,
-                exec_input.command,
-                exec_input.cwd,
-                exec_input.parsed_cmd,
-                exec_input.source,
-                exec_input.interaction_input.map(str::to_owned),
-                exec_input.process_id,
-            )
-            .await;
+            emit_exec_begin(ctx, exec_input).await;
         }
         ToolEventStage::Success(output)
         | ToolEventStage::Failure(ToolEventFailure::Output(output)) => {
@@ -465,6 +499,7 @@ async fn emit_exec_end(
     exec_input: ExecCommandInput<'_>,
     exec_result: ExecCommandResult,
 ) {
+    let completed_at_ms = now_unix_timestamp_ms();
     ctx.session
         .send_event(
             ctx.turn,
@@ -477,6 +512,8 @@ async fn emit_exec_end(
                 parsed_cmd: exec_input.parsed_cmd.to_vec(),
                 source: exec_input.source,
                 interaction_input: exec_input.interaction_input.map(str::to_owned),
+                started_at_ms: Some(exec_input.started_at_ms),
+                completed_at_ms: Some(completed_at_ms),
                 stdout: exec_result.stdout,
                 stderr: exec_result.stderr,
                 aggregated_output: exec_result.aggregated_output,
@@ -495,7 +532,11 @@ async fn emit_patch_end(
     stdout: String,
     stderr: String,
     status: PatchApplyStatus,
+    duration: Duration,
+    started_at_ms: i64,
 ) {
+    let completed_at_ms = now_unix_timestamp_ms();
+    let duration_ms = i64::try_from(duration.as_millis()).ok();
     ctx.session
         .emit_turn_item_completed(
             ctx.turn,
@@ -506,6 +547,9 @@ async fn emit_patch_end(
                 auto_approved: None,
                 stdout: Some(stdout),
                 stderr: Some(stderr),
+                started_at_ms: Some(started_at_ms),
+                completed_at_ms: Some(completed_at_ms),
+                duration_ms,
             }),
         )
         .await;

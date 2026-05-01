@@ -114,6 +114,7 @@ pub(crate) fn spawn_exit_watcher(
     process_id: i32,
     transcript: Arc<Mutex<HeadTailBuffer>>,
     started_at: Instant,
+    started_at_ms: i64,
 ) {
     let exit_token = process.cancellation_token();
     let output_drained = process.output_drained_notify();
@@ -135,6 +136,7 @@ pub(crate) fn spawn_exit_watcher(
                 String::new(),
                 message,
                 duration,
+                started_at_ms,
             )
             .await;
         } else {
@@ -150,6 +152,7 @@ pub(crate) fn spawn_exit_watcher(
                 String::new(),
                 exit_code,
                 duration,
+                started_at_ms,
             )
             .await;
         }
@@ -203,6 +206,7 @@ pub(crate) async fn emit_exec_end_for_unified_exec(
     fallback_output: String,
     exit_code: i32,
     duration: Duration,
+    started_at_ms: i64,
 ) {
     let aggregated_output = resolve_aggregated_output(&transcript, fallback_output).await;
     let output = ExecToolCallOutput {
@@ -224,6 +228,7 @@ pub(crate) async fn emit_exec_end_for_unified_exec(
         cwd,
         ExecCommandSource::UnifiedExecStartup,
         process_id,
+        started_at_ms,
     );
     emitter
         .emit(event_ctx, ToolEventStage::Success(output))
@@ -242,6 +247,7 @@ pub(crate) async fn emit_failed_exec_end_for_unified_exec(
     fallback_output: String,
     message: String,
     duration: Duration,
+    started_at_ms: i64,
 ) {
     let stdout = if fallback_output.is_empty() {
         resolve_aggregated_output(&transcript, fallback_output).await
@@ -272,6 +278,7 @@ pub(crate) async fn emit_failed_exec_end_for_unified_exec(
         cwd,
         ExecCommandSource::UnifiedExecStartup,
         process_id,
+        started_at_ms,
     );
     emitter
         .emit(

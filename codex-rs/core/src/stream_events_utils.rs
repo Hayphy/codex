@@ -1,5 +1,6 @@
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Instant;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -16,6 +17,7 @@ use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use crate::tools::parallel::ToolCallRuntime;
 use crate::tools::router::ToolRouter;
+use crate::turn_timing::now_unix_timestamp_ms;
 use codex_memories_read::citations::parse_memory_citation;
 use codex_memories_read::citations::thread_ids_from_memory_citation;
 use codex_protocol::error::CodexErr;
@@ -216,11 +218,43 @@ pub(crate) struct HandleOutputCtx {
     pub cancellation_token: CancellationToken,
 }
 
+pub(crate) type ResponseItemTiming = (i64, Instant);
+
+pub(crate) fn start_response_item_timing(item: &mut TurnItem) -> Option<ResponseItemTiming> {
+    let started_at_ms = now_unix_timestamp_ms();
+    match item {
+        TurnItem::WebSearch(item) => item.started_at_ms = Some(started_at_ms),
+        TurnItem::ImageGeneration(item) => item.started_at_ms = Some(started_at_ms),
+        _ => return None,
+    }
+    Some((started_at_ms, Instant::now()))
+}
+
+pub(crate) fn complete_response_item_timing(item: &mut TurnItem, timing: ResponseItemTiming) {
+    let (started_at_ms, started_at) = timing;
+    let completed_at_ms = now_unix_timestamp_ms();
+    let duration_ms = i64::try_from(started_at.elapsed().as_millis()).ok();
+    match item {
+        TurnItem::WebSearch(item) => {
+            item.started_at_ms = Some(started_at_ms);
+            item.completed_at_ms = Some(completed_at_ms);
+            item.duration_ms = duration_ms;
+        }
+        TurnItem::ImageGeneration(item) => {
+            item.started_at_ms = Some(started_at_ms);
+            item.completed_at_ms = Some(completed_at_ms);
+            item.duration_ms = duration_ms;
+        }
+        _ => {}
+    }
+}
+
 #[instrument(level = "trace", skip_all)]
 pub(crate) async fn handle_output_item_done(
     ctx: &mut HandleOutputCtx,
     item: ResponseItem,
     previously_active_item: Option<TurnItem>,
+    started_item_timing: Option<ResponseItemTiming>,
 ) -> Result<OutputItemResult> {
     let mut output = OutputItemResult::default();
     let plan_mode = ctx.turn_context.collaboration_mode.mode == ModeKind::Plan;
@@ -262,7 +296,8 @@ pub(crate) async fn handle_output_item_done(
                 plan_mode,
             )
             .await;
-            if let Some(turn_item) = turn_item {
+            if let Some(mut turn_item) = turn_item {
+                let mut completion_timing = started_item_timing;
                 if previously_active_item.is_none() {
                     let mut started_item = turn_item.clone();
                     if let TurnItem::ImageGeneration(item) = &mut started_item {
@@ -271,11 +306,15 @@ pub(crate) async fn handle_output_item_done(
                         item.result.clear();
                         item.saved_path = None;
                     }
+                    completion_timing = start_response_item_timing(&mut started_item);
                     ctx.sess
                         .emit_turn_item_started(&ctx.turn_context, &started_item)
                         .await;
                 }
 
+                if let Some(timing) = completion_timing {
+                    complete_response_item_timing(&mut turn_item, timing);
+                }
                 ctx.sess
                     .emit_turn_item_completed(&ctx.turn_context, turn_item)
                     .await;

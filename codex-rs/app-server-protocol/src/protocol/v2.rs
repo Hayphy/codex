@@ -10356,6 +10356,9 @@ mod tests {
                 query: Some("docs".to_string()),
                 queries: None,
             },
+            started_at_ms: None,
+            completed_at_ms: None,
+            duration_ms: None,
         });
 
         assert_eq!(
@@ -10384,6 +10387,9 @@ mod tests {
             auto_approved: None,
             stdout: Some("Done!".to_string()),
             stderr: Some(String::new()),
+            started_at_ms: None,
+            completed_at_ms: None,
+            duration_ms: None,
         });
 
         assert_eq!(

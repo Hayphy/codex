@@ -59,7 +59,6 @@ impl ToolHandler for McpHandler {
             turn,
             call_id,
             tool_name: model_tool_name,
-            pre_tool_use_permission_decision,
             payload,
             ..
         } = invocation;
@@ -89,7 +88,6 @@ impl ToolHandler for McpHandler {
             tool,
             model_tool_name.display(),
             arguments_str,
-            pre_tool_use_permission_decision,
         )
         .await;
 
@@ -146,7 +144,6 @@ mod tests {
                 call_id: "call-mcp-pre".to_string(),
                 tool_name: codex_tools::ToolName::namespaced("mcp__memory__", "create_entities"),
                 source: ToolCallSource::Direct,
-                pre_tool_use_permission_decision: None,
                 payload,
             }),
             Some(PreToolUsePayload {
@@ -196,7 +193,6 @@ mod tests {
             call_id: "call-mcp-post".to_string(),
             tool_name: codex_tools::ToolName::namespaced("mcp__filesystem__", "read_file"),
             source: ToolCallSource::Direct,
-            pre_tool_use_permission_decision: None,
             payload,
         };
         assert_eq!(

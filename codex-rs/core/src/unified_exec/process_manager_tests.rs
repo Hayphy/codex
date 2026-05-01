@@ -164,7 +164,6 @@ async fn failed_initial_end_for_unstored_process_uses_fallback_output() {
         Arc::clone(&session),
         Arc::clone(&turn),
         "call-unified-denied".to_string(),
-        None,
     );
     let request = ExecCommandRequest {
         command: vec![

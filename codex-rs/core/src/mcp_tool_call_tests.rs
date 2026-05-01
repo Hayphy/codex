@@ -1910,7 +1910,6 @@ async fn approve_mode_skips_when_annotations_do_not_require_approval() {
         "mcp__test__tool",
         Some(&metadata),
         AppToolApproval::Approve,
-        None,
     )
     .await;
 
@@ -1984,7 +1983,6 @@ async fn guardian_mode_skips_auto_when_annotations_do_not_require_approval() {
         "mcp__test__tool",
         Some(&metadata),
         AppToolApproval::Auto,
-        None,
     )
     .await;
 
@@ -2041,7 +2039,6 @@ async fn permission_request_hook_allows_mcp_tool_call() {
         "mcp__memory__create_entities",
         Some(&metadata),
         AppToolApproval::Auto,
-        None,
     )
     .await;
 
@@ -2102,7 +2099,6 @@ async fn permission_request_hook_uses_hook_tool_name_without_metadata() {
         "mcp__memory__create_entities",
         /*metadata*/ None,
         AppToolApproval::Auto,
-        None,
     )
     .await;
 
@@ -2180,7 +2176,6 @@ async fn permission_request_hook_runs_after_remembered_mcp_approval() {
         "mcp__memory__create_entities",
         Some(&metadata),
         AppToolApproval::Auto,
-        None,
     )
     .await;
 
@@ -2261,7 +2256,6 @@ async fn guardian_mode_mcp_denial_returns_rationale_message() {
         "mcp__test__tool",
         Some(&metadata),
         AppToolApproval::Auto,
-        None,
     )
     .await;
 
@@ -2319,7 +2313,6 @@ async fn prompt_mode_waits_for_approval_when_annotations_do_not_require_approval
                 "mcp__test__tool",
                 Some(&metadata),
                 AppToolApproval::Prompt,
-                None,
             )
             .await
         })
@@ -2395,7 +2388,6 @@ async fn approve_mode_blocks_when_arc_returns_interrupt_for_model() {
         "mcp__test__tool",
         Some(&metadata),
         AppToolApproval::Approve,
-        None,
     )
     .await;
 
@@ -2468,7 +2460,6 @@ async fn custom_approve_mode_blocks_when_arc_returns_interrupt_for_model() {
         "mcp__test__tool",
         Some(&metadata),
         AppToolApproval::Approve,
-        None,
     )
     .await;
 
@@ -2541,7 +2532,6 @@ async fn approve_mode_blocks_when_arc_returns_interrupt_without_annotations() {
         "mcp__test__tool",
         Some(&metadata),
         AppToolApproval::Approve,
-        None,
     )
     .await;
 
@@ -2624,7 +2614,6 @@ async fn full_access_mode_skips_arc_monitor_for_all_approval_modes() {
             "mcp__test__tool",
             Some(&metadata),
             approval_mode,
-            None,
         )
         .await;
 
@@ -2715,7 +2704,6 @@ async fn approve_mode_skips_arc_and_guardian_when_guardian_reviewer_is_enabled()
         "mcp__test__tool",
         Some(&metadata),
         AppToolApproval::Approve,
-        None,
     )
     .await;
 

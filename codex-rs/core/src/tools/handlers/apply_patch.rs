@@ -342,7 +342,6 @@ impl ToolHandler for ApplyPatchHandler {
             tracker,
             call_id,
             tool_name,
-            pre_tool_use_permission_decision,
             payload,
             ..
         } = invocation;
@@ -422,8 +421,6 @@ impl ToolHandler for ApplyPatchHandler {
                             turn: turn.clone(),
                             call_id: call_id.clone(),
                             tool_name: tool_name.display(),
-                            pre_tool_use_permission_decision: pre_tool_use_permission_decision
-                                .clone(),
                         };
                         let out = orchestrator
                             .run(
@@ -476,7 +473,6 @@ pub(crate) async fn intercept_apply_patch(
     tracker: Option<&SharedTurnDiffTracker>,
     call_id: &str,
     tool_name: &str,
-    pre_tool_use_permission_decision: Option<codex_hooks::PreToolUsePermissionDecision>,
 ) -> Result<Option<FunctionToolOutput>, FunctionCallError> {
     let sandbox = turn
         .primary_environment()
@@ -532,7 +528,6 @@ pub(crate) async fn intercept_apply_patch(
                         turn: turn.clone(),
                         call_id: call_id.to_string(),
                         tool_name: tool_name.to_string(),
-                        pre_tool_use_permission_decision,
                     };
                     let out = orchestrator
                         .run(

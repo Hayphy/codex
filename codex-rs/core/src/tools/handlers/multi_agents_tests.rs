@@ -74,7 +74,6 @@ fn invocation(
         call_id: "call-1".to_string(),
         tool_name: codex_tools::ToolName::plain(tool_name),
         source: crate::tools::context::ToolCallSource::Direct,
-        pre_tool_use_permission_decision: None,
         payload,
     }
 }

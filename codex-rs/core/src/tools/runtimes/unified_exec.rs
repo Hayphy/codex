@@ -241,7 +241,10 @@ impl<'a> ToolRuntime<UnifiedExecRequest, UnifiedExecProcess> for UnifiedExecRunt
                 tty: Some(req.tty),
             },
             command: req.hook_command.clone(),
-            pre_tool_use_permission_decision: ctx.pre_tool_use_permission_decision.clone(),
+            pre_tool_use_permission_decision: ctx
+                .turn
+                .pre_tool_use_approval_overrides
+                .get(&ctx.call_id),
         })
     }
 

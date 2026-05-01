@@ -103,12 +103,8 @@ async fn exec_command_with_tty(
             )
             .await?,
     );
-    let context = UnifiedExecContext::new(
-        Arc::clone(session),
-        Arc::clone(turn),
-        "call".to_string(),
-        None,
-    );
+    let context =
+        UnifiedExecContext::new(Arc::clone(session), Arc::clone(turn), "call".to_string());
     let started_at = Instant::now();
     let process_started_alive = !process.has_exited() && process.exit_code().is_none();
     if process_started_alive {

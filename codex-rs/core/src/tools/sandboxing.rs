@@ -347,7 +347,6 @@ pub(crate) struct ToolCtx {
     pub turn: Arc<TurnContext>,
     pub call_id: String,
     pub tool_name: String,
-    pub pre_tool_use_permission_decision: Option<codex_hooks::PreToolUsePermissionDecision>,
 }
 
 #[derive(Debug)]

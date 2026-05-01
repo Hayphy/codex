@@ -1,5 +1,6 @@
 use super::*;
 use crate::config::GhostSnapshotConfig;
+use crate::tools::pre_tool_use_approval_overrides::PreToolUseApprovalOverrides;
 use codex_model_provider::SharedModelProvider;
 use codex_model_provider::create_model_provider;
 use codex_protocol::models::AdditionalPermissionProfile;
@@ -86,6 +87,7 @@ pub(crate) struct TurnContext {
     pub(crate) tool_call_gate: Arc<ReadinessFlag>,
     pub(crate) truncation_policy: TruncationPolicy,
     pub(crate) dynamic_tools: Vec<DynamicToolSpec>,
+    pub(crate) pre_tool_use_approval_overrides: PreToolUseApprovalOverrides,
     pub(crate) turn_metadata_state: Arc<TurnMetadataState>,
     pub(crate) turn_skills: TurnSkillsContext,
     pub(crate) turn_timing_state: Arc<TurnTimingState>,
@@ -257,6 +259,7 @@ impl TurnContext {
             tool_call_gate: Arc::new(ReadinessFlag::new()),
             truncation_policy,
             dynamic_tools: self.dynamic_tools.clone(),
+            pre_tool_use_approval_overrides: self.pre_tool_use_approval_overrides.clone(),
             turn_metadata_state: self.turn_metadata_state.clone(),
             turn_skills: self.turn_skills.clone(),
             turn_timing_state: Arc::clone(&self.turn_timing_state),
@@ -547,6 +550,7 @@ impl Session {
             tool_call_gate: Arc::new(ReadinessFlag::new()),
             truncation_policy: model_info.truncation_policy.into(),
             dynamic_tools: session_configuration.dynamic_tools.clone(),
+            pre_tool_use_approval_overrides: PreToolUseApprovalOverrides::default(),
             turn_metadata_state,
             turn_skills: TurnSkillsContext::new(skills_outcome),
             turn_timing_state: Arc::new(TurnTimingState::default()),

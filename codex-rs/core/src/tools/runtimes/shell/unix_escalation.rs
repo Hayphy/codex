@@ -216,7 +216,6 @@ pub(super) async fn try_run_zsh_fork(
         sandbox_permissions: req.sandbox_permissions,
         approval_sandbox_permissions,
         prompt_permissions: req.additional_permissions.clone(),
-        pre_tool_use_permission_decision: ctx.pre_tool_use_permission_decision.clone(),
         stopwatch: stopwatch.clone(),
     };
 
@@ -292,7 +291,6 @@ pub(crate) async fn prepare_unified_exec_zsh_fork(
             req.additional_permissions_preapproved,
         ),
         prompt_permissions: req.additional_permissions.clone(),
-        pre_tool_use_permission_decision: ctx.pre_tool_use_permission_decision.clone(),
         stopwatch: Stopwatch::unlimited(),
     };
 
@@ -325,7 +323,6 @@ struct CoreShellActionProvider {
     sandbox_permissions: SandboxPermissions,
     approval_sandbox_permissions: SandboxPermissions,
     prompt_permissions: Option<AdditionalPermissionProfile>,
-    pre_tool_use_permission_decision: Option<codex_hooks::PreToolUsePermissionDecision>,
     stopwatch: Stopwatch,
 }
 
@@ -409,9 +406,11 @@ impl CoreShellActionProvider {
         let call_id = self.call_id.clone();
         let approval_id = Some(Uuid::new_v4().to_string());
         let source = self.tool_name;
+        let pre_tool_use_permission_decision =
+            self.turn.pre_tool_use_approval_overrides.get(&self.call_id);
         let route = resolve_approval_route(
             RoutingApprovalRequirement::NeedsApproval,
-            self.pre_tool_use_permission_decision.as_ref(),
+            pre_tool_use_permission_decision.as_ref(),
             routes_approval_to_guardian(&turn),
             /*strict_auto_review*/ false,
         );
@@ -429,7 +428,7 @@ impl CoreShellActionProvider {
 
                 // 1) Run PermissionRequest hooks when PreToolUse did not already
                 // provide the approval directive for this tool call.
-                if self.pre_tool_use_permission_decision.is_none() {
+                if pre_tool_use_permission_decision.is_none() {
                     let permission_request = PermissionRequestPayload::bash(
                         codex_shell_command::parse_command::shlex_join(&command),
                         /*description*/ None,

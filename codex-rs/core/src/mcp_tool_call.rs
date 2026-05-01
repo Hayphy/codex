@@ -100,7 +100,6 @@ pub(crate) async fn handle_mcp_tool_call(
     tool_name: String,
     hook_tool_name: String,
     arguments: String,
-    pre_tool_use_permission_decision: Option<codex_hooks::PreToolUsePermissionDecision>,
 ) -> HandledMcpToolCall {
     // Parse the `arguments` as JSON. An empty string is OK, but invalid JSON
     // is not.
@@ -205,7 +204,6 @@ pub(crate) async fn handle_mcp_tool_call(
         &hook_tool_name,
         metadata.as_ref(),
         approval_mode,
-        pre_tool_use_permission_decision.as_ref(),
     )
     .await
     {
@@ -958,8 +956,9 @@ async fn maybe_request_mcp_tool_approval(
     hook_tool_name: &str,
     metadata: Option<&McpToolApprovalMetadata>,
     approval_mode: AppToolApproval,
-    pre_tool_use_permission_decision: Option<&codex_hooks::PreToolUsePermissionDecision>,
 ) -> Option<McpToolApprovalDecision> {
+    let pre_tool_use_permission_decision =
+        turn_context.pre_tool_use_approval_overrides.get(call_id);
     let auto_approved_by_permissions = mcp_permission_prompt_is_auto_approved(
         turn_context.approval_policy.value(),
         &turn_context.permission_profile(),
@@ -980,7 +979,7 @@ async fn maybe_request_mcp_tool_approval(
     };
     let route = resolve_approval_route(
         requirement,
-        pre_tool_use_permission_decision,
+        pre_tool_use_permission_decision.as_ref(),
         routes_approval_to_guardian(turn_context),
         /*strict_auto_review*/ false,
     );

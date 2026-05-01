@@ -80,7 +80,6 @@ impl ToolOrchestrator {
             turn: tool_ctx.turn.clone(),
             call_id: tool_ctx.call_id.clone(),
             tool_name: tool_ctx.tool_name.clone(),
-            pre_tool_use_permission_decision: tool_ctx.pre_tool_use_permission_decision.clone(),
         };
         let attempt_with_network_approval = SandboxAttempt {
             sandbox: attempt.sandbox,
@@ -144,6 +143,10 @@ impl ToolOrchestrator {
         let otel_ci = &tool_ctx.call_id;
         let strict_auto_review = tool_ctx.session.strict_auto_review_enabled_for_turn().await;
         let route_to_guardian = routes_approval_to_guardian(turn_ctx);
+        let pre_tool_use_permission_decision = tool_ctx
+            .turn
+            .pre_tool_use_approval_overrides
+            .get(&tool_ctx.call_id);
 
         // 1) Approval
         let mut already_approved = false;
@@ -157,7 +160,7 @@ impl ToolOrchestrator {
             ExecApprovalRequirement::Skip { .. } => {
                 match resolve_approval_route(
                     RoutingApprovalRequirement::Skip,
-                    tool_ctx.pre_tool_use_permission_decision.as_ref(),
+                    pre_tool_use_permission_decision.as_ref(),
                     route_to_guardian,
                     strict_auto_review,
                 ) {
@@ -208,7 +211,7 @@ impl ToolOrchestrator {
             ExecApprovalRequirement::NeedsApproval { reason, .. } => {
                 match resolve_approval_route(
                     RoutingApprovalRequirement::NeedsApproval,
-                    tool_ctx.pre_tool_use_permission_decision.as_ref(),
+                    pre_tool_use_permission_decision.as_ref(),
                     route_to_guardian,
                     strict_auto_review,
                 ) {
@@ -239,8 +242,7 @@ impl ToolOrchestrator {
                             approval_ctx,
                             tool_ctx,
                             /*evaluate_permission_request_hooks*/
-                            !strict_auto_review
-                                && tool_ctx.pre_tool_use_permission_decision.is_none(),
+                            !strict_auto_review && pre_tool_use_permission_decision.is_none(),
                             route,
                             &otel,
                         )
@@ -367,7 +369,7 @@ impl ToolOrchestrator {
                 if !bypass_retry_approval {
                     let route = resolve_approval_route(
                         RoutingApprovalRequirement::NeedsApproval,
-                        tool_ctx.pre_tool_use_permission_decision.as_ref(),
+                        pre_tool_use_permission_decision.as_ref(),
                         route_to_guardian,
                         strict_auto_review,
                     );
@@ -392,8 +394,7 @@ impl ToolOrchestrator {
                             approval_ctx,
                             tool_ctx,
                             /*evaluate_permission_request_hooks*/
-                            !strict_auto_review
-                                && tool_ctx.pre_tool_use_permission_decision.is_none(),
+                            !strict_auto_review && pre_tool_use_permission_decision.is_none(),
                             route,
                             &otel,
                         )

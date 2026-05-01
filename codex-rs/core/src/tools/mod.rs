@@ -7,6 +7,7 @@ pub(crate) mod hook_names;
 pub(crate) mod network_approval;
 pub(crate) mod orchestrator;
 pub(crate) mod parallel;
+pub(crate) mod pre_tool_use_approval_overrides;
 pub(crate) mod registry;
 pub(crate) mod router;
 pub(crate) mod runtimes;

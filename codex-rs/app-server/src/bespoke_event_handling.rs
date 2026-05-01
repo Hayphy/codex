@@ -11,7 +11,6 @@ use crate::thread_state::TurnSummary;
 use crate::thread_state::resolve_server_request_on_thread_listener;
 use crate::thread_status::ThreadWatchActiveGuard;
 use crate::thread_status::ThreadWatchManager;
-use codex_analytics::AnalyticsEventsClient;
 use codex_app_server_protocol::AccountRateLimitsUpdatedNotification;
 use codex_app_server_protocol::AdditionalPermissionProfile as V2AdditionalPermissionProfile;
 use codex_app_server_protocol::CodexErrorInfo as V2CodexErrorInfo;
@@ -139,7 +138,6 @@ pub(crate) async fn apply_bespoke_event_handling(
     conversation_id: ThreadId,
     conversation: Arc<CodexThread>,
     thread_manager: Arc<ThreadManager>,
-    analytics_events_client: Option<AnalyticsEventsClient>,
     outgoing: ThreadScopedOutgoingMessageSender,
     thread_state: Arc<tokio::sync::Mutex<ThreadState>>,
     thread_watch_manager: ThreadWatchManager,
@@ -194,7 +192,6 @@ pub(crate) async fn apply_bespoke_event_handling(
                 conversation_id,
                 event_turn_id,
                 turn_complete_event,
-                analytics_events_client.as_ref(),
                 &outgoing,
                 &thread_state,
             )
@@ -1153,7 +1150,6 @@ pub(crate) async fn apply_bespoke_event_handling(
                 conversation_id,
                 event_turn_id,
                 turn_aborted_event,
-                analytics_events_client.as_ref(),
                 &outgoing,
                 &thread_state,
             )
@@ -1342,7 +1338,6 @@ async fn emit_turn_completed_with_status(
     conversation_id: ThreadId,
     event_turn_id: String,
     turn_completion_metadata: TurnCompletionMetadata,
-    analytics_events_client: Option<&AnalyticsEventsClient>,
     outgoing: &ThreadScopedOutgoingMessageSender,
 ) {
     let notification = TurnCompletedNotification {
@@ -1357,10 +1352,6 @@ async fn emit_turn_completed_with_status(
             duration_ms: turn_completion_metadata.duration_ms,
         },
     };
-    if let Some(analytics_events_client) = analytics_events_client {
-        analytics_events_client
-            .track_notification(ServerNotification::TurnCompleted(notification.clone()));
-    }
     outgoing
         .send_server_notification(ServerNotification::TurnCompleted(notification))
         .await;
@@ -1525,7 +1516,6 @@ async fn handle_turn_complete(
     conversation_id: ThreadId,
     event_turn_id: String,
     turn_complete_event: TurnCompleteEvent,
-    analytics_events_client: Option<&AnalyticsEventsClient>,
     outgoing: &ThreadScopedOutgoingMessageSender,
     thread_state: &Arc<Mutex<ThreadState>>,
 ) {
@@ -1546,7 +1536,6 @@ async fn handle_turn_complete(
             completed_at: turn_complete_event.completed_at,
             duration_ms: turn_complete_event.duration_ms,
         },
-        analytics_events_client,
         outgoing,
     )
     .await;
@@ -1556,7 +1545,6 @@ async fn handle_turn_interrupted(
     conversation_id: ThreadId,
     event_turn_id: String,
     turn_aborted_event: TurnAbortedEvent,
-    analytics_events_client: Option<&AnalyticsEventsClient>,
     outgoing: &ThreadScopedOutgoingMessageSender,
     thread_state: &Arc<Mutex<ThreadState>>,
 ) {
@@ -1572,7 +1560,6 @@ async fn handle_turn_interrupted(
             completed_at: turn_aborted_event.completed_at,
             duration_ms: turn_aborted_event.duration_ms,
         },
-        analytics_events_client,
         outgoing,
     )
     .await;
@@ -2117,7 +2104,6 @@ mod tests {
     use codex_app_server_protocol::GuardianApprovalReviewStatus;
     use codex_app_server_protocol::JSONRPCErrorError;
     use codex_app_server_protocol::TurnPlanStepStatus;
-    use codex_login::AuthManager;
     use codex_login::CodexAuth;
     use codex_protocol::items::HookPromptFragment;
     use codex_protocol::items::build_hook_prompt_message;
@@ -2248,7 +2234,6 @@ mod tests {
         outgoing: ThreadScopedOutgoingMessageSender,
         thread_state: Arc<Mutex<ThreadState>>,
         thread_watch_manager: ThreadWatchManager,
-        analytics_events_client: AnalyticsEventsClient,
         codex_home: PathBuf,
     }
 
@@ -2263,7 +2248,6 @@ mod tests {
                 self.conversation_id,
                 self.conversation.clone(),
                 self.thread_manager.clone(),
-                Some(self.analytics_events_client.clone()),
                 self.outgoing.clone(),
                 self.thread_state.clone(),
                 self.thread_watch_manager.clone(),
@@ -2599,13 +2583,6 @@ mod tests {
             outgoing: outgoing.clone(),
             thread_state: thread_state.clone(),
             thread_watch_manager: thread_watch_manager.clone(),
-            analytics_events_client: AnalyticsEventsClient::new(
-                AuthManager::from_auth_for_testing(
-                    CodexAuth::create_dummy_chatgpt_auth_for_testing(),
-                ),
-                "http://localhost".to_string(),
-                Some(false),
-            ),
             codex_home: codex_home.path().to_path_buf(),
         };
 
@@ -3185,7 +3162,6 @@ mod tests {
             conversation_id,
             event_turn_id.clone(),
             turn_complete_event(&event_turn_id),
-            /*analytics_events_client*/ None,
             &outgoing,
             &thread_state,
         )
@@ -3237,7 +3213,6 @@ mod tests {
             conversation_id,
             event_turn_id.clone(),
             turn_aborted_event(&event_turn_id),
-            /*analytics_events_client*/ None,
             &outgoing,
             &thread_state,
         )
@@ -3288,7 +3263,6 @@ mod tests {
             conversation_id,
             event_turn_id.clone(),
             turn_complete_event(&event_turn_id),
-            /*analytics_events_client*/ None,
             &outgoing,
             &thread_state,
         )
@@ -3523,7 +3497,6 @@ mod tests {
             conversation_a,
             a_turn1.clone(),
             turn_complete_event(&a_turn1),
-            /*analytics_events_client*/ None,
             &outgoing,
             &thread_state,
         )
@@ -3545,7 +3518,6 @@ mod tests {
             conversation_b,
             b_turn1.clone(),
             turn_complete_event(&b_turn1),
-            /*analytics_events_client*/ None,
             &outgoing,
             &thread_state,
         )
@@ -3557,7 +3529,6 @@ mod tests {
             conversation_a,
             a_turn2.clone(),
             turn_complete_event(&a_turn2),
-            /*analytics_events_client*/ None,
             &outgoing,
             &thread_state,
         )

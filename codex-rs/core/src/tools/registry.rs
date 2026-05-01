@@ -369,16 +369,6 @@ impl ToolRegistry {
             return Err(err);
         }
 
-        if let Some(permission_decision) = pre_tool_use_outcome
-            .as_ref()
-            .and_then(|outcome| outcome.permission_decision.clone())
-        {
-            invocation
-                .turn
-                .pre_tool_use_approval_overrides
-                .record(invocation.call_id.clone(), permission_decision);
-        }
-
         let is_mutating = handler.is_mutating(&invocation).await;
         let response_cell = tokio::sync::Mutex::new(None);
         let invocation_for_tool = invocation.clone();

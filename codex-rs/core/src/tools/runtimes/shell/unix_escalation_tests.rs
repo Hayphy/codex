@@ -414,6 +414,7 @@ async fn execve_permission_request_hook_short_circuits_prompt() -> anyhow::Resul
         sandbox_permissions: SandboxPermissions::RequireEscalated,
         approval_sandbox_permissions: SandboxPermissions::RequireEscalated,
         prompt_permissions: None,
+        pre_tool_use_permission_decision: None,
         stopwatch: codex_shell_escalation::Stopwatch::new(Duration::from_secs(1)),
     };
 

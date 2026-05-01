@@ -9,6 +9,7 @@ use crate::sandboxing::SandboxPermissions;
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use crate::state::SessionServices;
+use crate::tools::approval_routing::ApprovalCachePolicy;
 use crate::tools::hook_names::HookToolName;
 use crate::tools::network_approval::NetworkApprovalSpec;
 use codex_network_proxy::NetworkProxy;
@@ -130,6 +131,7 @@ pub(crate) struct ApprovalCtx<'a> {
     pub guardian_review_id: Option<String>,
     pub retry_reason: Option<String>,
     pub network_approval_context: Option<NetworkApprovalContext>,
+    pub approval_cache_policy: ApprovalCachePolicy,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -345,6 +347,7 @@ pub(crate) struct ToolCtx {
     pub turn: Arc<TurnContext>,
     pub call_id: String,
     pub tool_name: String,
+    pub pre_tool_use_permission_decision: Option<codex_hooks::PreToolUsePermissionDecision>,
 }
 
 #[derive(Debug)]

@@ -6,6 +6,7 @@
 use crate::exec::is_likely_sandbox_denied;
 use crate::guardian::GuardianApprovalRequest;
 use crate::guardian::review_approval_request;
+use crate::tools::approval_routing::ApprovalCachePolicy;
 use crate::tools::hook_names::HookToolName;
 use crate::tools::sandboxing::Approvable;
 use crate::tools::sandboxing::ApprovalCtx;
@@ -135,20 +136,21 @@ impl Approvable<ApplyPatchRequest> for ApplyPatchRuntime {
                 return rx_approve.await.unwrap_or_default();
             }
 
-            with_cached_approval(
-                &session.services,
-                "apply_patch",
-                approval_keys,
-                || async move {
-                    let rx_approve = session
-                        .request_patch_approval(
-                            turn, call_id, changes, /*reason*/ None, /*grant_root*/ None,
-                        )
-                        .await;
-                    rx_approve.await.unwrap_or_default()
-                },
-            )
-            .await
+            let fetch = || async move {
+                let rx_approve = session
+                    .request_patch_approval(
+                        turn, call_id, changes, /*reason*/ None, /*grant_root*/ None,
+                    )
+                    .await;
+                rx_approve.await.unwrap_or_default()
+            };
+            match ctx.approval_cache_policy {
+                ApprovalCachePolicy::UseCachedApprovals => {
+                    with_cached_approval(&session.services, "apply_patch", approval_keys, fetch)
+                        .await
+                }
+                ApprovalCachePolicy::BypassCachedApprovals => fetch().await,
+            }
         })
     }
 

@@ -31,6 +31,9 @@ use crate::mcp_tool_approval_templates::RenderedMcpToolApprovalParam;
 use crate::mcp_tool_approval_templates::render_mcp_tool_approval_template;
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
+use crate::tools::approval_routing::ApprovalRequirement as RoutingApprovalRequirement;
+use crate::tools::approval_routing::ApprovalRoute;
+use crate::tools::approval_routing::resolve_approval_route;
 use crate::tools::hook_names::HookToolName;
 use crate::tools::sandboxing::PermissionRequestPayload;
 use codex_analytics::AppInvocation;
@@ -97,6 +100,7 @@ pub(crate) async fn handle_mcp_tool_call(
     tool_name: String,
     hook_tool_name: String,
     arguments: String,
+    pre_tool_use_permission_decision: Option<codex_hooks::PreToolUsePermissionDecision>,
 ) -> HandledMcpToolCall {
     // Parse the `arguments` as JSON. An empty string is OK, but invalid JSON
     // is not.
@@ -201,6 +205,7 @@ pub(crate) async fn handle_mcp_tool_call(
         &hook_tool_name,
         metadata.as_ref(),
         approval_mode,
+        pre_tool_use_permission_decision.as_ref(),
     )
     .await
     {
@@ -953,21 +958,33 @@ async fn maybe_request_mcp_tool_approval(
     hook_tool_name: &str,
     metadata: Option<&McpToolApprovalMetadata>,
     approval_mode: AppToolApproval,
+    pre_tool_use_permission_decision: Option<&codex_hooks::PreToolUsePermissionDecision>,
 ) -> Option<McpToolApprovalDecision> {
-    if mcp_permission_prompt_is_auto_approved(
+    let auto_approved_by_permissions = mcp_permission_prompt_is_auto_approved(
         turn_context.approval_policy.value(),
         &turn_context.permission_profile(),
         McpPermissionPromptAutoApproveContext {
             approvals_reviewer: Some(turn_context.config.approvals_reviewer),
             tool_approval_mode: Some(approval_mode),
         },
-    ) {
-        return None;
-    }
+    );
 
     let annotations = metadata.and_then(|metadata| metadata.annotations.as_ref());
     let approval_required = requires_mcp_tool_approval(annotations);
-    if !approval_required && approval_mode != AppToolApproval::Prompt {
+    let requirement = if auto_approved_by_permissions
+        || (!approval_required && approval_mode != AppToolApproval::Prompt)
+    {
+        RoutingApprovalRequirement::Skip
+    } else {
+        RoutingApprovalRequirement::NeedsApproval
+    };
+    let route = resolve_approval_route(
+        requirement,
+        pre_tool_use_permission_decision,
+        routes_approval_to_guardian(turn_context),
+        /*strict_auto_review*/ false,
+    );
+    if matches!(&route, ApprovalRoute::Skip) {
         return None;
     }
 
@@ -999,35 +1016,38 @@ async fn maybe_request_mcp_tool_approval(
     let session_approval_key = session_mcp_tool_approval_key(invocation, metadata, approval_mode);
     let persistent_approval_key =
         persistent_mcp_tool_approval_key(invocation, metadata, approval_mode);
-    if let Some(key) = session_approval_key.as_ref()
+    if pre_tool_use_permission_decision.is_none()
+        && let Some(key) = session_approval_key.as_ref()
         && mcp_tool_approval_is_remembered(sess, key).await
     {
         return Some(McpToolApprovalDecision::Accept);
     }
 
-    match run_permission_request_hooks(
-        sess,
-        turn_context,
-        call_id,
-        PermissionRequestPayload {
-            tool_name: HookToolName::new(hook_tool_name),
-            tool_input: invocation
-                .arguments
-                .clone()
-                .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new())),
-        },
-    )
-    .await
-    {
-        Some(PermissionRequestDecision::Allow) => {
-            return Some(McpToolApprovalDecision::Accept);
+    if pre_tool_use_permission_decision.is_none() {
+        match run_permission_request_hooks(
+            sess,
+            turn_context,
+            call_id,
+            PermissionRequestPayload {
+                tool_name: HookToolName::new(hook_tool_name),
+                tool_input: invocation
+                    .arguments
+                    .clone()
+                    .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new())),
+            },
+        )
+        .await
+        {
+            Some(PermissionRequestDecision::Allow) => {
+                return Some(McpToolApprovalDecision::Accept);
+            }
+            Some(PermissionRequestDecision::Deny { message }) => {
+                return Some(McpToolApprovalDecision::Decline {
+                    message: Some(message),
+                });
+            }
+            None => {}
         }
-        Some(PermissionRequestDecision::Deny { message }) => {
-            return Some(McpToolApprovalDecision::Decline {
-                message: Some(message),
-            });
-        }
-        None => {}
     }
 
     let tool_call_mcp_elicitation_enabled = turn_context
@@ -1035,7 +1055,7 @@ async fn maybe_request_mcp_tool_approval(
         .features
         .enabled(Feature::ToolCallMcpElicitation);
 
-    if routes_approval_to_guardian(turn_context) {
+    if matches!(&route, ApprovalRoute::RouteToGuardian) {
         let review_id = new_guardian_review_id();
         let decision = review_approval_request(
             sess,
@@ -1084,8 +1104,11 @@ async fn maybe_request_mcp_tool_approval(
             .as_ref()
             .map(|rendered_template| rendered_template.question.as_str()),
     );
-    question.question =
-        mcp_tool_approval_question_text(question.question, monitor_reason.as_deref());
+    let prompt_reason = match &route {
+        ApprovalRoute::PromptUser { reason, .. } => reason.as_deref().or(monitor_reason.as_deref()),
+        ApprovalRoute::Skip | ApprovalRoute::RouteToGuardian => monitor_reason.as_deref(),
+    };
+    question.question = mcp_tool_approval_question_text(question.question, prompt_reason);
     if tool_call_mcp_elicitation_enabled {
         let request_id = rmcp::model::RequestId::String(
             format!("{MCP_TOOL_APPROVAL_QUESTION_ID_PREFIX}_{call_id}").into(),
@@ -1103,7 +1126,7 @@ async fn maybe_request_mcp_tool_approval(
                 tool_params_display: tool_params_display.as_deref(),
                 question,
                 message_override: rendered_template.as_ref().and_then(|rendered_template| {
-                    monitor_reason
+                    prompt_reason
                         .is_none()
                         .then_some(rendered_template.elicitation_message.as_str())
                 }),

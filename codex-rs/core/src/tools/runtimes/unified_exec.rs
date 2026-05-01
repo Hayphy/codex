@@ -14,6 +14,7 @@ use crate::sandboxing::ExecOptions;
 use crate::sandboxing::ExecServerEnvConfig;
 use crate::sandboxing::SandboxPermissions;
 use crate::shell::ShellType;
+use crate::tools::approval_routing::ApprovalCachePolicy;
 use crate::tools::network_approval::NetworkApprovalMode;
 use crate::tools::network_approval::NetworkApprovalSpec;
 use crate::tools::runtimes::build_sandbox_command;
@@ -168,7 +169,7 @@ impl Approvable<UnifiedExecRequest> for UnifiedExecRuntime<'_> {
                 )
                 .await;
             }
-            with_cached_approval(&session.services, "unified_exec", keys, || async move {
+            let fetch = || async move {
                 let available_decisions = None;
                 session
                     .request_command_approval(
@@ -186,8 +187,13 @@ impl Approvable<UnifiedExecRequest> for UnifiedExecRuntime<'_> {
                         available_decisions,
                     )
                     .await
-            })
-            .await
+            };
+            match ctx.approval_cache_policy {
+                ApprovalCachePolicy::UseCachedApprovals => {
+                    with_cached_approval(&session.services, "unified_exec", keys, fetch).await
+                }
+                ApprovalCachePolicy::BypassCachedApprovals => fetch().await,
+            }
         })
     }
 
@@ -235,6 +241,7 @@ impl<'a> ToolRuntime<UnifiedExecRequest, UnifiedExecProcess> for UnifiedExecRunt
                 tty: Some(req.tty),
             },
             command: req.hook_command.clone(),
+            pre_tool_use_permission_decision: ctx.pre_tool_use_permission_decision.clone(),
         })
     }
 

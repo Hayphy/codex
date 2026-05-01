@@ -14,6 +14,9 @@ use crate::sandboxing::ExecOptions;
 use crate::sandboxing::ExecRequest;
 use crate::sandboxing::SandboxPermissions;
 use crate::shell::ShellType;
+use crate::tools::approval_routing::ApprovalRequirement as RoutingApprovalRequirement;
+use crate::tools::approval_routing::ApprovalRoute;
+use crate::tools::approval_routing::resolve_approval_route;
 use crate::tools::runtimes::build_sandbox_command;
 use crate::tools::runtimes::exec_env_for_sandbox_permissions;
 use crate::tools::sandboxing::PermissionRequestPayload;
@@ -213,6 +216,7 @@ pub(super) async fn try_run_zsh_fork(
         sandbox_permissions: req.sandbox_permissions,
         approval_sandbox_permissions,
         prompt_permissions: req.additional_permissions.clone(),
+        pre_tool_use_permission_decision: ctx.pre_tool_use_permission_decision.clone(),
         stopwatch: stopwatch.clone(),
     };
 
@@ -288,6 +292,7 @@ pub(crate) async fn prepare_unified_exec_zsh_fork(
             req.additional_permissions_preapproved,
         ),
         prompt_permissions: req.additional_permissions.clone(),
+        pre_tool_use_permission_decision: ctx.pre_tool_use_permission_decision.clone(),
         stopwatch: Stopwatch::unlimited(),
     };
 
@@ -320,6 +325,7 @@ struct CoreShellActionProvider {
     sandbox_permissions: SandboxPermissions,
     approval_sandbox_permissions: SandboxPermissions,
     prompt_permissions: Option<AdditionalPermissionProfile>,
+    pre_tool_use_permission_decision: Option<codex_hooks::PreToolUsePermissionDecision>,
     stopwatch: Stopwatch,
 }
 
@@ -403,38 +409,57 @@ impl CoreShellActionProvider {
         let call_id = self.call_id.clone();
         let approval_id = Some(Uuid::new_v4().to_string());
         let source = self.tool_name;
-        let guardian_review_id = routes_approval_to_guardian(&turn).then(new_guardian_review_id);
+        let route = resolve_approval_route(
+            RoutingApprovalRequirement::NeedsApproval,
+            self.pre_tool_use_permission_decision.as_ref(),
+            routes_approval_to_guardian(&turn),
+            /*strict_auto_review*/ false,
+        );
+        let guardian_review_id =
+            matches!(&route, ApprovalRoute::RouteToGuardian).then(new_guardian_review_id);
         Ok(stopwatch
             .pause_for(async move {
-                // 1) Run PermissionRequest hooks
-                let permission_request = PermissionRequestPayload::bash(
-                    codex_shell_command::parse_command::shlex_join(&command),
-                    /*description*/ None,
-                );
-                let effective_approval_id = approval_id.clone().unwrap_or_else(|| call_id.clone());
-                match run_permission_request_hooks(
-                    &session,
-                    &turn,
-                    &effective_approval_id,
-                    permission_request,
-                )
-                .await
-                {
-                    Some(PermissionRequestDecision::Allow) => {
-                        return PromptDecision {
-                            decision: ReviewDecision::Approved,
-                            guardian_review_id: None,
-                            rejection_message: None,
-                        };
+                if matches!(&route, ApprovalRoute::Skip) {
+                    return PromptDecision {
+                        decision: ReviewDecision::Approved,
+                        guardian_review_id: None,
+                        rejection_message: None,
+                    };
+                }
+
+                // 1) Run PermissionRequest hooks when PreToolUse did not already
+                // provide the approval directive for this tool call.
+                if self.pre_tool_use_permission_decision.is_none() {
+                    let permission_request = PermissionRequestPayload::bash(
+                        codex_shell_command::parse_command::shlex_join(&command),
+                        /*description*/ None,
+                    );
+                    let effective_approval_id =
+                        approval_id.clone().unwrap_or_else(|| call_id.clone());
+                    match run_permission_request_hooks(
+                        &session,
+                        &turn,
+                        &effective_approval_id,
+                        permission_request,
+                    )
+                    .await
+                    {
+                        Some(PermissionRequestDecision::Allow) => {
+                            return PromptDecision {
+                                decision: ReviewDecision::Approved,
+                                guardian_review_id: None,
+                                rejection_message: None,
+                            };
+                        }
+                        Some(PermissionRequestDecision::Deny { message }) => {
+                            return PromptDecision {
+                                decision: ReviewDecision::Denied,
+                                guardian_review_id: None,
+                                rejection_message: Some(message),
+                            };
+                        }
+                        None => {}
                     }
-                    Some(PermissionRequestDecision::Deny { message }) => {
-                        return PromptDecision {
-                            decision: ReviewDecision::Denied,
-                            guardian_review_id: None,
-                            rejection_message: Some(message),
-                        };
-                    }
-                    None => {}
                 }
 
                 // 2) Route to Guardian if configured
@@ -469,7 +494,10 @@ impl CoreShellActionProvider {
                         approval_id,
                         command,
                         workdir.clone(),
-                        /*reason*/ None,
+                        match route {
+                            ApprovalRoute::PromptUser { reason, .. } => reason,
+                            ApprovalRoute::Skip | ApprovalRoute::RouteToGuardian => None,
+                        },
                         /*network_approval_context*/ None,
                         /*proposed_execpolicy_amendment*/ None,
                         additional_permissions,

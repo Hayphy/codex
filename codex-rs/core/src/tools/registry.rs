@@ -396,6 +396,11 @@ impl ToolRegistry {
                 None
             };
 
+        let mut invocation = invocation;
+        invocation.pre_tool_use_permission_decision = pre_tool_use_outcome
+            .as_ref()
+            .and_then(|outcome| outcome.permission_decision.clone());
+
         let is_mutating = handler.is_mutating(&invocation).await;
         let response_cell = tokio::sync::Mutex::new(None);
         let invocation_for_tool = invocation.clone();

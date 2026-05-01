@@ -975,6 +975,7 @@ async fn danger_full_access_tool_attempts_do_not_enforce_managed_network() -> an
         turn: Arc::clone(&turn),
         call_id: "probe-call".to_string(),
         tool_name: "probe".to_string(),
+        pre_tool_use_permission_decision: None,
     };
 
     orchestrator
@@ -8148,6 +8149,7 @@ async fn create_goal_tool_rejects_existing_goal() {
             call_id: "create-goal-1".to_string(),
             tool_name: codex_tools::ToolName::plain("create_goal"),
             source: ToolCallSource::Direct,
+            pre_tool_use_permission_decision: None,
             payload: ToolPayload::Function {
                 arguments: serde_json::json!({
                     "objective": "Keep the watcher alive",
@@ -8168,6 +8170,7 @@ async fn create_goal_tool_rejects_existing_goal() {
             call_id: "create-goal-2".to_string(),
             tool_name: codex_tools::ToolName::plain("create_goal"),
             source: ToolCallSource::Direct,
+            pre_tool_use_permission_decision: None,
             payload: ToolPayload::Function {
                 arguments: serde_json::json!({
                     "objective": "Replace the watcher",
@@ -8210,6 +8213,7 @@ async fn update_goal_tool_rejects_pausing_goal() {
             call_id: "create-goal".to_string(),
             tool_name: codex_tools::ToolName::plain("create_goal"),
             source: ToolCallSource::Direct,
+            pre_tool_use_permission_decision: None,
             payload: ToolPayload::Function {
                 arguments: serde_json::json!({
                     "objective": "Keep the watcher alive",
@@ -8230,6 +8234,7 @@ async fn update_goal_tool_rejects_pausing_goal() {
             call_id: "pause-goal".to_string(),
             tool_name: codex_tools::ToolName::plain("update_goal"),
             source: ToolCallSource::Direct,
+            pre_tool_use_permission_decision: None,
             payload: ToolPayload::Function {
                 arguments: serde_json::json!({
                     "status": "paused",
@@ -8270,6 +8275,7 @@ async fn update_goal_tool_marks_goal_complete() {
             call_id: "create-goal".to_string(),
             tool_name: codex_tools::ToolName::plain("create_goal"),
             source: ToolCallSource::Direct,
+            pre_tool_use_permission_decision: None,
             payload: ToolPayload::Function {
                 arguments: serde_json::json!({
                     "objective": "Keep the watcher alive",
@@ -8290,6 +8296,7 @@ async fn update_goal_tool_marks_goal_complete() {
             call_id: "complete-goal".to_string(),
             tool_name: codex_tools::ToolName::plain("update_goal"),
             source: ToolCallSource::Direct,
+            pre_tool_use_permission_decision: None,
             payload: ToolPayload::Function {
                 arguments: serde_json::json!({
                     "status": "complete",
@@ -8373,6 +8380,7 @@ async fn rejects_escalated_permissions_when_policy_not_on_request() {
             call_id,
             tool_name: codex_tools::ToolName::plain(tool_name),
             source: crate::tools::context::ToolCallSource::Direct,
+            pre_tool_use_permission_decision: None,
             payload: ToolPayload::Function {
                 arguments: serde_json::json!({
                     "command": params.command.clone(),
@@ -8448,6 +8456,7 @@ async fn unified_exec_rejects_escalated_permissions_when_policy_not_on_request()
             call_id: "exec-call".to_string(),
             tool_name: codex_tools::ToolName::plain("exec_command"),
             source: crate::tools::context::ToolCallSource::Direct,
+            pre_tool_use_permission_decision: None,
             payload: ToolPayload::Function {
                 arguments: serde_json::json!({
                     "cmd": "echo hi",

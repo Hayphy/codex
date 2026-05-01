@@ -265,6 +265,7 @@ fn test_invocation_with_payload(
         call_id: call_id.to_string(),
         tool_name,
         source,
+        pre_tool_use_permission_decision: None,
         payload,
     }
 }

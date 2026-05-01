@@ -85,6 +85,7 @@ struct RunExecLikeArgs {
     turn: Arc<TurnContext>,
     tracker: crate::tools::context::SharedTurnDiffTracker,
     call_id: String,
+    pre_tool_use_permission_decision: Option<codex_hooks::PreToolUsePermissionDecision>,
     freeform: bool,
     shell_runtime_backend: ShellRuntimeBackend,
 }
@@ -235,6 +236,7 @@ impl ToolHandler for ShellHandler {
             tracker,
             call_id,
             tool_name,
+            pre_tool_use_permission_decision,
             payload,
             ..
         } = invocation;
@@ -256,6 +258,7 @@ impl ToolHandler for ShellHandler {
                     turn,
                     tracker,
                     call_id,
+                    pre_tool_use_permission_decision: pre_tool_use_permission_decision.clone(),
                     freeform: false,
                     shell_runtime_backend: ShellRuntimeBackend::Generic,
                 })
@@ -274,6 +277,7 @@ impl ToolHandler for ShellHandler {
                     turn,
                     tracker,
                     call_id,
+                    pre_tool_use_permission_decision,
                     freeform: false,
                     shell_runtime_backend: ShellRuntimeBackend::Generic,
                 })
@@ -349,6 +353,7 @@ impl ToolHandler for ShellCommandHandler {
             tracker,
             call_id,
             tool_name,
+            pre_tool_use_permission_decision,
             payload,
             ..
         } = invocation;
@@ -388,6 +393,7 @@ impl ToolHandler for ShellCommandHandler {
             turn,
             tracker,
             call_id,
+            pre_tool_use_permission_decision,
             freeform: true,
             shell_runtime_backend: self.shell_runtime_backend(),
         })
@@ -407,6 +413,7 @@ impl ShellHandler {
             turn,
             tracker,
             call_id,
+            pre_tool_use_permission_decision,
             freeform,
             shell_runtime_backend,
         } = args;
@@ -492,6 +499,7 @@ impl ShellHandler {
             Some(&tracker),
             &call_id,
             tool_name.as_str(),
+            pre_tool_use_permission_decision.clone(),
         )
         .await?
         {
@@ -563,6 +571,7 @@ impl ShellHandler {
             turn: turn.clone(),
             call_id: call_id.clone(),
             tool_name,
+            pre_tool_use_permission_decision,
         };
         let out = orchestrator
             .run(

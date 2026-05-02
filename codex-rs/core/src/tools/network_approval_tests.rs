@@ -238,7 +238,7 @@ async fn register_call_with_default_shell_trigger(
                 tty: None,
             },
             "curl https://example.com".to_string(),
-            None,
+            /*pre_tool_use_permission_decision*/ None,
             cancellation_token.clone(),
         )
         .await;
@@ -265,7 +265,7 @@ async fn active_call_preserves_triggering_command_context() {
             "turn-1".to_string(),
             expected.clone(),
             "curl https://example.com".to_string(),
-            None,
+            /*pre_tool_use_permission_decision*/ None,
             CancellationToken::new(),
         )
         .await;

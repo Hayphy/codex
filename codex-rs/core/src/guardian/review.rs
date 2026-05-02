@@ -639,9 +639,18 @@ pub(super) async fn run_guardian_review_session(
             fallback
         }
     };
-    let preferred_model = available_models
-        .iter()
-        .find(|preset| preset.model == super::GUARDIAN_PREFERRED_MODEL);
+    let configured_review_model = turn.config.review_model.as_deref();
+    let preferred_model = configured_review_model
+        .and_then(|model| {
+            available_models
+                .iter()
+                .find(|preset| preset.model == model)
+        })
+        .or_else(|| {
+            available_models
+                .iter()
+                .find(|preset| preset.model == super::GUARDIAN_PREFERRED_MODEL)
+        });
     let (guardian_model, guardian_reasoning_effort) = if let Some(preset) = preferred_model {
         let reasoning_effort = preferred_reasoning_effort(
             preset
@@ -651,7 +660,7 @@ pub(super) async fn run_guardian_review_session(
             Some(preset.default_reasoning_effort),
         );
         (
-            super::GUARDIAN_PREFERRED_MODEL.to_string(),
+            preset.model.clone(),
             reasoning_effort,
         )
     } else {
@@ -663,7 +672,12 @@ pub(super) async fn run_guardian_review_session(
             turn.reasoning_effort
                 .or(turn.model_info.default_reasoning_level),
         );
-        (turn.model_info.slug.clone(), reasoning_effort)
+        (
+            configured_review_model
+                .unwrap_or(turn.model_info.slug.as_str())
+                .to_string(),
+            reasoning_effort,
+        )
     };
     let guardian_config = build_guardian_review_session_config(
         turn.config.as_ref(),

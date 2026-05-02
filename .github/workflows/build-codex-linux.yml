@@ -1,0 +1,32 @@
+name: Build Codex Linux
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: codex-rs
+
+      - name: Build codex
+        working-directory: codex-rs
+        run: cargo build --release -p codex-cli
+
+      - name: Package artifact
+        run: |
+          mkdir -p artifact
+          cp codex-rs/target/release/codex artifact/codex
+          chmod +x artifact/codex
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codex-linux-x64
+          path: artifact/codex
